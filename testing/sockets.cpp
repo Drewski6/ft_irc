@@ -1,14 +1,41 @@
-#include <iostream>
-#include <cstdlib>
-#include <cstring>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <sys/types.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <vector>
+#include "sockets.hpp"
 
-int setup_serv_sock() {
+/****************************/
+/*        CONSTRUCTORS      */
+/****************************/
+
+serverManagerClass::serverManagerClass()
+{
+    _listenfd = setup_serv_sock();
+    if( _listenfd == -1)
+        exit(1);
+        // throw(listeningException());
+    
+    _sigtype = SIGEMPTY;
+
+    _instance = this;
+}
+
+serverManagerClass::~serverManagerClass()
+{
+
+}
+
+// const char * serverManagerClass::listeningException::what() const throw()
+// {
+//     return ("Listening error.");
+// }
+
+int serverManagerClass::getListenFd() const
+{
+    return(_listenfd);
+}
+
+/****************************/
+/*          METHODS         */
+/****************************/
+
+int serverManagerClass::setup_serv_sock() {
     // Setup the listening socket
     int sockfd, portno;
     struct sockaddr_in serv_addr;
@@ -33,42 +60,42 @@ int setup_serv_sock() {
     return sockfd;
 }
 
-int main () {
-    int listenfd = setup_serv_sock();
 
-    if( -1 == listenfd )
-        return 1;
 
+void serverManagerClass::launch()
+{
     fd_set master_fds, read_fds;
     FD_ZERO(&master_fds);
     FD_ZERO(&read_fds);
-    FD_SET(listenfd, &master_fds);
+    FD_SET(_listenfd, &master_fds);
+    _fdmax = _listenfd;
 
-    int fdmax = listenfd;
+    this->setAsSignalHandler();
+
 
     while (1) {
 
         read_fds = master_fds; // copy it
-        if (select(fdmax+1, &read_fds, NULL, NULL, NULL) == -1) {
+        if (select(_fdmax+1, &read_fds, NULL, NULL, NULL) == -1) {
             perror("select");
             exit(4);
         }
 
         // run through the existing connections looking for data to read
-        for(int i = 0; i <= fdmax; i++) {
+        for(int i = 0; i <= _fdmax; i++) {
             if (FD_ISSET(i, &read_fds)) { // we got one!!
-                if (i == listenfd) {
+                if (i == _listenfd) {
                     // handle new connections
                     struct sockaddr_storage remoteaddr; // client address
                     socklen_t addrlen = sizeof remoteaddr;
-                    int newfd = accept(listenfd, (struct sockaddr *)&remoteaddr, &addrlen);
+                    int newfd = accept(_listenfd, (struct sockaddr *)&remoteaddr, &addrlen);
 
                     if (newfd == -1) {
                         perror("accept");
                     } else {
                         FD_SET(newfd, &master_fds); // add to master set
-                        if (newfd > fdmax) {    // keep track of the max
-                            fdmax = newfd;
+                        if (newfd > _fdmax) {    // keep track of the max
+                            _fdmax = newfd;
                         }
                         printf("selectserver: new connection on socket %d\n", newfd);
                     }
@@ -100,6 +127,21 @@ int main () {
             } // END got new incoming connection
         } // END looping through file descriptors
     } // END for(;;)--and you thought it would never end!
+
+
+}
+
+int main () {
+
+    serverManagerClass serverManager;
+
+    serverManager.launch();
+
+
+
+
+
+
 
     return (0);
 }
