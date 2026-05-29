@@ -16,6 +16,7 @@ int main(int argc, char **argv) {
   try {
     ArgParse::numArgs(argc);
     port = ArgParse::parsePort(argv[1]);
+    passStr = "";
     passStr = ArgParse::parsePass(argv[2]);
   } catch (const ServerException& e) {
     std::cerr << e.what() << std::endl;
